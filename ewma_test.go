@@ -70,7 +70,7 @@ func TestVariableEWMAWarmup(t *testing.T) {
 		e.Add(f)
 
 		// all values returned during warmup should be 0.0
-		if uint8(i) < WARMUP_SAMPLES {
+		if uint8(i) < e.WarmupSamples() {
 			if e.Value() != 0.0 {
 				t.Errorf("e.Value() is %v, expected %v", e.Value(), 0.0)
 			}
@@ -91,7 +91,7 @@ func TestVariableEWMAWarmup2(t *testing.T) {
 		e.Add(f)
 
 		// all values returned during warmup should be 0.0
-		if uint8(i) < WARMUP_SAMPLES {
+		if uint8(i) < e.WarmupSamples() {
 			if e.Value() != 0.0 {
 				t.Errorf("e.Value() is %v, expected %v", e.Value(), 0.0)
 			}

@@ -1,6 +1,8 @@
 // Package ewma implements exponentially weighted moving averages.
 package ewma
 
+import "fmt"
+
 // Copyright (c) 2013 VividCortex, Inc. All rights reserved.
 // Please see the LICENSE file for applicable license terms.
 
@@ -19,7 +21,7 @@ const (
 	// the mean of the first 10 samples. Until the VariableEwma has seen this
 	// many samples, it is not "ready" to be queried for the value of the
 	// moving average. This adds some memory cost.
-	WARMUP_SAMPLES uint8 = 10
+	DEFAULT_WARMUP_SAMPLES uint8 = 10
 )
 
 // MovingAverage is the interface that computes a moving average over a time-
@@ -29,6 +31,8 @@ type MovingAverage interface {
 	Add(float64)
 	Value() float64
 	Set(float64)
+	SetWarmupSamples(uint8) error
+	WarmupSamples() uint8
 }
 
 // NewMovingAverage constructs a MovingAverage that computes an average with the
@@ -42,7 +46,8 @@ func NewMovingAverage(age ...float64) MovingAverage {
 		return new(SimpleEWMA)
 	}
 	return &VariableEWMA{
-		decay: 2 / (age[0] + 1),
+		decay:          2 / (age[0] + 1),
+		warmup_samples: DEFAULT_WARMUP_SAMPLES,
 	}
 }
 
@@ -85,6 +90,17 @@ func (e *SimpleEWMA) Set(value float64) {
 	e.value = &value
 }
 
+func (e *SimpleEWMA) WarmupSamples() uint8 {
+	return 0
+}
+
+func (e *SimpleEWMA) SetWarmupSamples(warmup_samples uint8) error {
+	if warmup_samples > 0 {
+		return fmt.Errorf("warmup samples must be 0")
+	}
+	return nil
+}
+
 // VariableEWMA represents the exponentially weighted moving average of a series of
 // numbers. Unlike SimpleEWMA, it supports a custom age, and thus uses more memory.
 type VariableEWMA struct {
@@ -94,17 +110,19 @@ type VariableEWMA struct {
 	value float64
 	// The number of samples added to this instance.
 	count uint8
+	// The number of warmup samples
+	warmup_samples uint8
 }
 
 // Add adds a value to the series and updates the moving average.
 func (e *VariableEWMA) Add(value float64) {
 	switch {
-	case e.count < WARMUP_SAMPLES:
+	case e.count < e.warmup_samples:
 		e.count++
 		e.value += value
-	case e.count == WARMUP_SAMPLES:
+	case e.count == e.warmup_samples:
 		e.count++
-		e.value = e.value / float64(WARMUP_SAMPLES)
+		e.value = e.value / float64(e.warmup_samples)
 		e.value = (value * e.decay) + (e.value * (1 - e.decay))
 	default:
 		e.value = (value * e.decay) + (e.value * (1 - e.decay))
@@ -114,7 +132,7 @@ func (e *VariableEWMA) Add(value float64) {
 // Value returns the current value of the average, or 0.0 if the series hasn't
 // warmed up yet.
 func (e *VariableEWMA) Value() float64 {
-	if e.count <= WARMUP_SAMPLES {
+	if e.count <= e.warmup_samples {
 		return 0.0
 	}
 
@@ -124,7 +142,19 @@ func (e *VariableEWMA) Value() float64 {
 // Set sets the EWMA's value.
 func (e *VariableEWMA) Set(value float64) {
 	e.value = value
-	if e.count <= WARMUP_SAMPLES {
-		e.count = WARMUP_SAMPLES + 1
+	if e.count <= e.warmup_samples {
+		e.count = e.warmup_samples + 1
 	}
+}
+
+func (e *VariableEWMA) SetWarmupSamples(warmup_samples uint8) error {
+	if warmup_samples < 1 {
+		return fmt.Errorf("warmup samples must be between 1 and 255")
+	}
+	e.warmup_samples = warmup_samples
+	return nil
+}
+
+func (e *VariableEWMA) WarmupSamples() uint8 {
+	return e.warmup_samples
 }
